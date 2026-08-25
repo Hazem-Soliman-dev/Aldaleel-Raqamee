@@ -14,17 +14,40 @@ SECRET_KEY = os.getenv(
 
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't', 'yes')
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,web,.vercel.app').split(',')
-    if host.strip()
-]
+def _parse_allowed_hosts():
+    raw = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,web,.vercel.app,*')
+    hosts = []
+    for item in raw.split(','):
+        h = item.strip()
+        if not h:
+            continue
+        if '://' in h:
+            h = h.split('://', 1)[1]
+        h = h.split('/', 1)[0]
+        if h and h not in hosts:
+            hosts.append(h)
+    if '.vercel.app' not in hosts and '*' not in hosts:
+        hosts.append('.vercel.app')
+    return hosts
 
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'https://aldaleel-raqamee-eight.vercel.app,http://localhost,http://127.0.0.1').split(',')
-    if origin.strip()
-]
+ALLOWED_HOSTS = _parse_allowed_hosts()
+
+def _parse_csrf_origins():
+    raw = os.getenv('CSRF_TRUSTED_ORIGINS', 'https://*.vercel.app,http://localhost,http://127.0.0.1')
+    origins = []
+    for item in raw.split(','):
+        o = item.strip().rstrip('/')
+        if not o:
+            continue
+        if not o.startswith('http://') and not o.startswith('https://'):
+            o = f'https://{o}'
+        if o not in origins:
+            origins.append(o)
+    if 'https://*.vercel.app' not in origins:
+        origins.append('https://*.vercel.app')
+    return origins
+
+CSRF_TRUSTED_ORIGINS = _parse_csrf_origins()
 
 INSTALLED_APPS = [
     'django.contrib.admin',
