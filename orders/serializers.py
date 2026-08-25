@@ -1,4 +1,4 @@
-﻿from rest_framework import serializers
+from rest_framework import serializers
 from .models import Order, OrderItem
 
 class OrderItemInputSerializer(serializers.Serializer):
@@ -54,6 +54,8 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'items',
             'created_at',
             'updated_at',
+            'approved_at',
+            'rejected_at',
             'cancelled_at',
         ]
         read_only_fields = fields

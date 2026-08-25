@@ -1,10 +1,12 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 from django.db import models
 from django.core.validators import MinValueValidator
 from products.models import Product
 
 class OrderStatus(models.TextChoices):
     PENDING = 'PENDING', 'Pending'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
     CANCELLED = 'CANCELLED', 'Cancelled'
 
 class Order(models.Model):
@@ -18,6 +20,8 @@ class Order(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    approved_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the order was approved by an admin")
+    rejected_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the order was rejected by an admin")
     cancelled_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp when the order was cancelled")
 
     class Meta:

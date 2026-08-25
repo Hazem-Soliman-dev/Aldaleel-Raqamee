@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aldaleel Digital - Product Catalog & Stock Reservation</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --ar-blue: #0b3b60;
+            --ar-blue-hover: #072a46;
+            --ar-red: #d92d20;
+            --ar-bg: #f8fafc;
+            --ar-card-bg: #ffffff;
+        }
+        body {
+            background-color: var(--ar-bg);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            color: #1e293b;
+        }
+        .navbar-brand {
+            color: var(--ar-blue) !important;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+        .badge-pending {
+            background-color: #fef08a;
+            color: #854d0e;
+            border: 1px solid #facc15;
+            font-weight: 600;
+        }
+        .badge-cancelled {
+            background-color: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #cbd5e1;
+            font-weight: 600;
+        }
+        .card {
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            background: var(--ar-card-bg);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .card-header {
+            background-color: #ffffff;
+            border-bottom: 1px solid #e2e8f0;
+            font-weight: 600;
+            border-radius: 14px 14px 0 0 !important;
+        }
+        .btn-primary {
+            background-color: var(--ar-blue);
+            border-color: var(--ar-blue);
+            font-weight: 500;
+        }
+        .btn-primary:hover {
+            background-color: var(--ar-blue-hover);
+            border-color: var(--ar-blue-hover);
+        }
+        .stock-pill {
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        .qty-btn {
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .cart-qty-input {
+            width: 55px;
+            text-align: center;
+            font-weight: 600;
+            padding: 2px 4px;
+        }
+        .table > :not(caption) > * > * {
+            padding: 0.85rem 1rem;
+        }
+        .empty-cart-box {
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            background: #f8fafc;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top py-2">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4 d-flex align-items-center" href="/shop/">
+                <i class="bi bi-box-seam me-2 text-primary fs-3"></i>Aldaleel Raqamee
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navContent">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
+                    <li class="nav-item">
+                        <a class="nav-link active fw-semibold text-primary" href="/shop/">
+                            <i class="bi bi-shop me-1"></i>Products Storefront
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark fw-medium" href="/admin/">
+                            <i class="bi bi-speedometer2 me-1 text-primary"></i>Admin Dashboard
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    {% if user.is_authenticated %}
+                        <span class="badge bg-light text-dark border me-2 py-2 px-3 fs-6 font-monospace">
+                            <i class="bi bi-person-circle me-1 text-primary"></i>{{ user.username }}{% if user.is_staff %} <span class="badge bg-primary ms-1">Staff</span>{% endif %}
+                        </span>
+                        <form action="{% url 'rest_framework:logout' %}?next=/shop/" method="post" class="d-inline ms-1 mb-0">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-danger btn-sm px-3">
+                                <i class="bi bi-box-arrow-right me-1"></i>Log out
+                            </button>
+                        </form>
+                    {% else %}
+                        <span class="text-muted small me-2"><i class="bi bi-person-fill me-1"></i>Guest</span>
+                        <a href="/api-auth/login/?next=/shop/" class="btn btn-primary btn-sm px-3">
+                            <i class="bi bi-box-arrow-in-right me-1"></i>Log in
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="container my-4">
+        <!-- Global Feedback Alert -->
+        <div id="alertBox" class="alert d-none alert-dismissible fade show shadow-sm" role="alert">
+            <span id="alertMsg"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <div class="row g-4">
+            <!-- LEFT COLUMN: Product Catalog -->
+            <div class="col-lg-7">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <h5 class="mb-0 fw-bold"><i class="bi bi-grid-3x3-gap me-2 text-primary"></i>Available Products</h5>
+                            <small class="text-muted">Browse active inventory items and add to your order</small>
+                        </div>
+                        <span class="badge bg-primary-subtle text-primary border border-primary px-3 py-2">{{ products|length }} Items</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Product</th>
+                                        <th>SKU</th>
+                                        <th>Price</th>
+                                        <th>Stock</th>
+                                        <th class="text-end">Select</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for product in products %}
+                                    <tr id="product-row-{{ product.id }}">
+                                        <td>
+                                            <div class="fw-bold text-dark">{{ product.name }}</div>
+                                            {% if product.description %}
+                                                <small class="text-muted d-block text-truncate" style="max-width: 260px;">{{ product.description }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td><code class="text-primary fw-semibold">{{ product.sku }}</code></td>
+                                        <td class="fw-bold text-dark">${{ product.price }}</td>
+                                        <td>
+                                            {% if product.stock_quantity > 10 %}
+                                                <span class="badge bg-success-subtle text-success border border-success stock-pill">
+                                                    <i class="bi bi-check-circle me-1"></i>{{ product.stock_quantity }} in stock
+                                                </span>
+                                            {% elif product.stock_quantity > 0 %}
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning stock-pill">
+                                                    <i class="bi bi-exclamation-triangle me-1"></i>{{ product.stock_quantity }} low stock
+                                                </span>
+                                            {% else %}
+                                                <span class="badge bg-danger-subtle text-danger border border-danger stock-pill">
+                                                    <i class="bi bi-x-circle me-1"></i>Out of stock
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="text-end">
+                                            {% if product.stock_quantity > 0 %}
+                                                <button class="btn btn-sm btn-outline-primary px-3" 
+                                                        onclick="addToCart({{ product.id }}, '{{ product.name|escapejs }}', '{{ product.sku|escapejs }}', {{ product.price }}, {{ product.stock_quantity }})">
+                                                    <i class="bi bi-plus-lg me-1"></i>Add
+                                                </button>
+                                            {% else %}
+                                                <button class="btn btn-sm btn-secondary px-3" disabled>Unavailable</button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-5">
+                                            <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                                            No active products found in catalog.
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Multi-Product Reservation Builder & Customer Orders -->
+            <div class="col-lg-5">
+                <!-- 1. Multi-Product Order Builder Card -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <h5 class="mb-0 fw-bold"><i class="bi bi-cart-check me-2 text-primary"></i>Order Builder</h5>
+                            <small class="text-muted">Choose multiple products & quantities</small>
+                        </div>
+                        <span id="cartCountBadge" class="badge bg-primary rounded-pill px-3 py-2">0 items</span>
+                    </div>
+                    <div class="card-body">
+                        {% if user.is_authenticated %}
+                            <!-- Authenticated Customer Info -->
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold small text-uppercase text-muted">Customer Account</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-person-check-fill text-success"></i></span>
+                                    <input type="text" id="customerName" class="form-control bg-light" 
+                                           value="{{ user.get_full_name|default:user.username }}" readonly>
+                                </div>
+                                <div class="form-text text-success small"><i class="bi bi-shield-check me-1"></i>Logged in as {{ user.username }}</div>
+                            </div>
+
+                            <!-- Empty Cart Callout -->
+                            <div id="emptyCartBox" class="empty-cart-box my-3">
+                                <i class="bi bi-bag-plus text-primary fs-1 d-block mb-2"></i>
+                                <div class="fw-semibold text-dark mb-1">Your order selection is empty</div>
+                                <small class="text-muted">Click <strong>"+ Add"</strong> on any product from the catalog on the left to select items.</small>
+                            </div>
+
+                            <!-- Selected Items Table (hidden when empty) -->
+                            <div id="cartItemsContainer" class="d-none">
+                                <div class="table-responsive mb-3">
+                                    <table class="table table-sm align-middle mb-0">
+                                        <thead class="table-light">
+                                            <tr class="small text-muted">
+                                                <th>Product</th>
+                                                <th style="width: 130px;" class="text-center">Quantity</th>
+                                                <th class="text-end">Total</th>
+                                                <th style="width: 30px;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="cartTableBody">
+                                            <!-- Dynamically populated rows -->
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Cart Summary Card -->
+                                <div class="bg-light p-3 rounded-3 mb-3 border">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <span class="text-muted small">Total Items:</span>
+                                        <span id="cartTotalItems" class="fw-bold">0 units</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="fw-bold text-dark">Total Reservation:</span>
+                                        <span id="cartGrandTotal" class="fw-bold text-primary fs-5">$0.00</span>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons -->
+                                <div class="d-grid gap-2">
+                                    <button type="button" id="submitOrderBtn" class="btn btn-primary py-2" onclick="submitMultiProductOrder()">
+                                        <i class="bi bi-lock me-1"></i>Reserve Stock & Place Order
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearCart()">
+                                        <i class="bi bi-trash3 me-1"></i>Clear Selection
+                                    </button>
+                                </div>
+                            </div>
+                        {% else %}
+                            <!-- Unauthenticated Guest Prompt (Only Logged-in Users Can Place Orders) -->
+                            <div class="alert alert-warning border-warning d-flex align-items-start p-3 my-2" role="alert">
+                                <i class="bi bi-shield-lock-fill text-warning fs-3 me-3"></i>
+                                <div>
+                                    <h6 class="fw-bold mb-1">Login Required to Place Orders</h6>
+                                    <p class="small mb-0 text-muted">
+                                        Only logged-in customers can reserve stock and create orders. Please log in with your account or demo credentials.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="d-grid gap-2 mt-3">
+                                <a href="/api-auth/login/?next=/shop/" class="btn btn-primary py-2 fw-semibold">
+                                    <i class="bi bi-box-arrow-in-right me-1"></i>Log in to Create Order
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- 2. Customer Order History Card (Strictly Isolated to Customer / Admin View) -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center py-3">
+                        <div>
+                            <h5 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-primary"></i>Reservations & Orders</h5>
+                            <small class="text-muted">
+                                {% if user.is_authenticated and user.is_staff %}
+                                    All system orders (Admin approval mode)
+                                {% elif user.is_authenticated %}
+                                    Orders for <strong>{{ user.username }}</strong>
+                                {% else %}
+                                    Log in to view your orders
+                                {% endif %}
+                            </small>
+                        </div>
+                        <button class="btn btn-sm btn-outline-secondary" title="Refresh" onclick="location.reload()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="list-group list-group-flush">
+                            {% for order in orders %}
+                            <div class="list-group-item p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <div>
+                                        <span class="fw-bold text-dark fs-6">Order #{{ order.id }}</span>
+                                        <small class="text-muted ms-1">({{ order.created_at|date:"M d, H:i" }})</small>
+                                    </div>
+                                    {% if order.status == 'PENDING' %}
+                                        <span class="badge badge-pending px-2 py-1">
+                                            <i class="bi bi-hourglass-split me-1"></i>PENDING
+                                        </span>
+                                    {% elif order.status == 'APPROVED' %}
+                                        <span class="badge bg-success-subtle text-success border border-success px-2 py-1 fw-bold">
+                                            <i class="bi bi-check-circle-fill me-1"></i>APPROVED
+                                        </span>
+                                    {% elif order.status == 'REJECTED' %}
+                                        <span class="badge bg-danger-subtle text-danger border border-danger px-2 py-1 fw-bold">
+                                            <i class="bi bi-x-circle-fill me-1"></i>REJECTED
+                                        </span>
+                                    {% else %}
+                                        <span class="badge badge-cancelled px-2 py-1">
+                                            <i class="bi bi-x-circle me-1"></i>CANCELLED
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="small text-muted mb-2">
+                                    Customer: <strong>{{ order.customer_name }}</strong> &bull; Total: <strong class="text-dark">${{ order.total_amount }}</strong>
+                                </div>
+                                <div class="bg-light p-2 rounded-2 mb-2 small border">
+                                    {% for item in order.items.all %}
+                                        <div class="d-flex justify-content-between py-0.5">
+                                            <span>&bull; {{ item.quantity }}x {{ item.product.name }}</span>
+                                            <span class="text-muted">${{ item.line_total }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                                {% if order.status == 'PENDING' %}
+                                    {% if user.is_staff or user.is_superuser %}
+                                        <div class="d-flex gap-2">
+                                            <button class="btn btn-sm btn-success flex-fill" onclick="approveOrder({{ order.id }})">
+                                                <i class="bi bi-check-lg me-1"></i>Approve Order
+                                            </button>
+                                            <button class="btn btn-sm btn-danger flex-fill" onclick="rejectOrder({{ order.id }})">
+                                                <i class="bi bi-x-lg me-1"></i>Reject & Release
+                                            </button>
+                                        </div>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-outline-danger w-100" onclick="cancelOrder({{ order.id }})">
+                                            <i class="bi bi-arrow-counterclockwise me-1"></i>Cancel & Release Stock
+                                        </button>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+                            {% empty %}
+                            <div class="p-4 text-center text-muted">
+                                <i class="bi bi-receipt fs-1 d-block mb-2 text-secondary"></i>
+                                {% if user.is_authenticated %}
+                                    No reservations found for your account yet.
+                                {% else %}
+                                    Please log in to view your orders.
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Interactive Cart & Reservation JavaScript -->
+    <script>
+        const isUserAuthenticated = {% if user.is_authenticated %}true{% else %}false{% endif %};
+        const cart = new Map();
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function showAlert(msg, type='success') {
+            const box = document.getElementById('alertBox');
+            const txt = document.getElementById('alertMsg');
+            box.className = `alert alert-${type} alert-dismissible fade show shadow-sm`;
+            txt.innerHTML = msg;
+            box.classList.remove('d-none');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function addToCart(id, name, sku, price, maxStock) {
+            if (!isUserAuthenticated) {
+                showAlert('Please <a href="/api-auth/login/?next=/shop/" class="alert-link">Log in</a> to reserve products and place orders.', 'warning');
+                return;
+            }
+
+            if (maxStock <= 0) {
+                showAlert(`Product "${name}" is currently out of stock.`, 'danger');
+                return;
+            }
+
+            if (cart.has(id)) {
+                const item = cart.get(id);
+                if (item.quantity < maxStock) {
+                    item.quantity += 1;
+                } else {
+                    showAlert(`Maximum available stock (${maxStock}) reached for "${name}".`, 'warning');
+                    return;
+                }
+            } else {
+                cart.set(id, {
+                    id: id,
+                    name: name,
+                    sku: sku,
+                    price: parseFloat(price),
+                    stock: maxStock,
+                    quantity: 1
+                });
+            }
+
+            renderCart();
+            showAlert(`Added <strong>${name}</strong> to your reservation builder.`, 'info');
+        }
+
+        function updateCartQty(id, delta) {
+            if (!cart.has(id)) return;
+            const item = cart.get(id);
+            const newQty = item.quantity + delta;
+
+            if (newQty <= 0) {
+                cart.delete(id);
+            } else if (newQty > item.stock) {
+                showAlert(`Cannot reserve more than ${item.stock} units of "${item.name}".`, 'warning');
+                return;
+            } else {
+                item.quantity = newQty;
+            }
+            renderCart();
+        }
+
+        function setCartQtyDirect(id, value) {
+            if (!cart.has(id)) return;
+            const item = cart.get(id);
+            let parsed = parseInt(value);
+            if (isNaN(parsed) || parsed < 1) parsed = 1;
+            if (parsed > item.stock) {
+                showAlert(`Max available stock is ${item.stock}.`, 'warning');
+                parsed = item.stock;
+            }
+            item.quantity = parsed;
+            renderCart();
+        }
+
+        function removeFromCart(id) {
+            cart.delete(id);
+            renderCart();
+        }
+
+        function clearCart() {
+            cart.clear();
+            renderCart();
+        }
+
+        function renderCart() {
+            const emptyBox = document.getElementById('emptyCartBox');
+            const cartContainer = document.getElementById('cartItemsContainer');
+            const tableBody = document.getElementById('cartTableBody');
+            const countBadge = document.getElementById('cartCountBadge');
+            const totalItemsElem = document.getElementById('cartTotalItems');
+            const grandTotalElem = document.getElementById('cartGrandTotal');
+
+            if (!emptyBox || !cartContainer) return;
+
+            if (cart.size === 0) {
+                emptyBox.classList.remove('d-none');
+                cartContainer.classList.add('d-none');
+                if (countBadge) countBadge.innerText = '0 items';
+                return;
+            }
+
+            emptyBox.classList.add('d-none');
+            cartContainer.classList.remove('d-none');
+
+            tableBody.innerHTML = '';
+            let totalQty = 0;
+            let grandTotal = 0;
+
+            cart.forEach(item => {
+                const subtotal = item.quantity * item.price;
+                totalQty += item.quantity;
+                grandTotal += subtotal;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>
+                        <div class="fw-bold text-dark">${item.name}</div>
+                        <small class="text-muted">$${item.price.toFixed(2)} each &bull; <code>${item.sku}</code></small>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <button class="btn btn-outline-secondary qty-btn btn-sm" onclick="updateCartQty(${item.id}, -1)">-</button>
+                            <input type="number" class="form-control cart-qty-input mx-1 form-control-sm" 
+                                   value="${item.quantity}" min="1" max="${item.stock}" 
+                                   onchange="setCartQtyDirect(${item.id}, this.value)">
+                            <button class="btn btn-outline-secondary qty-btn btn-sm" onclick="updateCartQty(${item.id}, 1)">+</button>
+                        </div>
+                    </td>
+                    <td class="text-end fw-bold text-dark">$${subtotal.toFixed(2)}</td>
+                    <td class="text-end">
+                        <button class="btn btn-link text-danger p-0" title="Remove" onclick="removeFromCart(${item.id})">
+                            <i class="bi bi-x-circle-fill"></i>
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            if (countBadge) countBadge.innerText = `${cart.size} product${cart.size > 1 ? 's' : ''}`;
+            if (totalItemsElem) totalItemsElem.innerText = `${totalQty} unit${totalQty > 1 ? 's' : ''}`;
+            if (grandTotalElem) grandTotalElem.innerText = `$${grandTotal.toFixed(2)}`;
+        }
+
+        async function submitMultiProductOrder() {
+            if (!isUserAuthenticated) {
+                showAlert('Please <a href="/api-auth/login/?next=/shop/" class="alert-link">Log in</a> to place your order.', 'warning');
+                return;
+            }
+
+            if (cart.size === 0) {
+                showAlert('Please select at least one product to reserve.', 'warning');
+                return;
+            }
+
+            const customerNameElem = document.getElementById('customerName');
+            const customerName = customerNameElem ? customerNameElem.value.trim() : '';
+
+            const itemsArray = [];
+            cart.forEach(item => {
+                itemsArray.push({
+                    product_id: item.id,
+                    quantity: item.quantity
+                });
+            });
+
+            const submitBtn = document.getElementById('submitOrderBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Reserving Stock...';
+
+            const csrftoken = getCookie('csrftoken');
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrftoken) {
+                headers['X-CSRFToken'] = csrftoken;
+            }
+
+            try {
+                const res = await fetch('/api/orders/', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        customer_name: customerName,
+                        items: itemsArray
+                    })
+                });
+
+                const data = await res.json();
+                if (res.ok) {
+                    clearCart();
+                    showAlert(`Reservation confirmed! <strong>Order #${data.id}</strong> created successfully with reserved stock.`, 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    const errMsg = data.error || data.detail || (data.items ? JSON.stringify(data.items) : JSON.stringify(data));
+                    showAlert(`Reservation Failed: ${errMsg}`, 'danger');
+                }
+            } catch (err) {
+                showAlert(`Network error: ${err.message}`, 'danger');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-lock me-1"></i>Reserve Stock & Place Order';
+            }
+        }
+
+        async function approveOrder(orderId) {
+            if (!confirm(`Are you sure you want to APPROVE Order #${orderId}?`)) return;
+            const csrftoken = getCookie('csrftoken');
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrftoken) headers['X-CSRFToken'] = csrftoken;
+
+            try {
+                const res = await fetch(`/api/orders/${orderId}/approve/`, {
+                    method: 'POST',
+                    headers: headers
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAlert(`Order #${orderId} has been APPROVED successfully!`, 'success');
+                    setTimeout(() => location.reload(), 900);
+                } else {
+                    const errMsg = data.error || data.detail || JSON.stringify(data);
+                    showAlert(`Approval Failed: ${errMsg}`, 'danger');
+                }
+            } catch (err) {
+                showAlert(`Network error: ${err.message}`, 'danger');
+            }
+        }
+
+        async function rejectOrder(orderId) {
+            if (!confirm(`Are you sure you want to REJECT Order #${orderId} and release reserved stock back to inventory?`)) return;
+            const csrftoken = getCookie('csrftoken');
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrftoken) headers['X-CSRFToken'] = csrftoken;
+
+            try {
+                const res = await fetch(`/api/orders/${orderId}/reject/`, {
+                    method: 'POST',
+                    headers: headers
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAlert(`Order #${orderId} was REJECTED. Reserved stock has been restored to catalog.`, 'info');
+                    setTimeout(() => location.reload(), 900);
+                } else {
+                    const errMsg = data.error || data.detail || JSON.stringify(data);
+                    showAlert(`Rejection Failed: ${errMsg}`, 'danger');
+                }
+            } catch (err) {
+                showAlert(`Network error: ${err.message}`, 'danger');
+            }
+        }
+
+        async function cancelOrder(orderId) {
+            if (!confirm(`Are you sure you want to cancel Order #${orderId} and release the reserved stock back to inventory?`)) return;
+
+            const csrftoken = getCookie('csrftoken');
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrftoken) headers['X-CSRFToken'] = csrftoken;
+
+            try {
+                const res = await fetch(`/api/orders/${orderId}/cancel/`, {
+                    method: 'POST',
+                    headers: headers
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAlert(`Order #${orderId} was cancelled. Reserved stock has been restored to catalog.`, 'info');
+                    setTimeout(() => location.reload(), 900);
+                } else {
+                    const errMsg = data.error || data.detail || JSON.stringify(data);
+                    showAlert(`Cancellation Failed: ${errMsg}`, 'danger');
+                }
+            } catch (err) {
+                showAlert(`Network error: ${err.message}`, 'danger');
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

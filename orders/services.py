@@ -1,4 +1,4 @@
-﻿from collections import defaultdict
+from collections import defaultdict
 from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
@@ -97,6 +97,66 @@ class OrderService:
                 for item in items_data
             ]
             OrderItem.objects.bulk_create(order_items)
+
+            return order
+
+    @classmethod
+    def approve_order(cls, order_id: int) -> Order:
+        """
+        Atomically approves a PENDING order by an administrator.
+        The reserved stock remains finalized.
+        """
+        with transaction.atomic():
+            try:
+                order = Order.objects.select_for_update().get(id=order_id)
+            except Order.DoesNotExist:
+                raise Http404(f"Order #{order_id} not found.")
+
+            if order.status != OrderStatus.PENDING:
+                raise InvalidOrderStateException(
+                    f"Order #{order_id} cannot be approved because its current status is '{order.status}'. "
+                    f"Only orders in 'PENDING' status can be approved."
+                )
+
+            order.status = OrderStatus.APPROVED
+            order.approved_at = timezone.now()
+            order.save(update_fields=['status', 'approved_at', 'updated_at'])
+            return order
+
+    @classmethod
+    def reject_order(cls, order_id: int) -> Order:
+        """
+        Atomically rejects a PENDING order by an administrator and restores reserved stock.
+        """
+        with transaction.atomic():
+            try:
+                order = Order.objects.select_for_update().get(id=order_id)
+            except Order.DoesNotExist:
+                raise Http404(f"Order #{order_id} not found.")
+
+            if order.status != OrderStatus.PENDING:
+                raise InvalidOrderStateException(
+                    f"Order #{order_id} cannot be rejected because its current status is '{order.status}'. "
+                    f"Only orders in 'PENDING' status can be rejected."
+                )
+
+            # Retrieve order items and lock products in deterministic ID order
+            items = list(order.items.select_related('product').all())
+            product_ids = sorted({item.product_id for item in items})
+            products_qs = Product.objects.select_for_update().filter(id__in=product_ids)
+            product_map = {p.id: p for p in products_qs}
+
+            # Restore reserved quantities back to product stock
+            for item in items:
+                product = product_map.get(item.product_id)
+                if product:
+                    product.stock_quantity += item.quantity
+                    product.save(update_fields=['stock_quantity', 'updated_at'])
+
+            # Mark order as rejected
+            order.status = OrderStatus.REJECTED
+            order.rejected_at = timezone.now()
+            order.save(update_fields=['status', 'rejected_at', 'updated_at'])
 
             return order
 

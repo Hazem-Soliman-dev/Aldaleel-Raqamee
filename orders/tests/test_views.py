@@ -1,10 +1,11 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
 from products.models import Product
 from orders.models import Order, OrderItem, OrderStatus
+from orders.services import OrderService
 
 User = get_user_model()
 
@@ -209,3 +210,81 @@ class OrderAPITest(TestCase):
         res_detail = self.client.get(f'/api/orders/{order_id}/')
         self.assertEqual(res_detail.status_code, status.HTTP_200_OK)
         self.assertEqual(res_detail.data['customer_name'], "Kevin")
+
+    def test_shop_view_and_logout(self):
+        # Anonymous user visit
+        res_anon = self.client.get('/shop/')
+        self.assertEqual(res_anon.status_code, status.HTTP_200_OK)
+        self.assertContains(res_anon, 'Log in')
+
+        # Authenticated user visit
+        self.client.force_login(self.customer1)
+        res_auth = self.client.get('/shop/')
+        self.assertEqual(res_auth.status_code, status.HTTP_200_OK)
+        self.assertContains(res_auth, 'Log out')
+        self.assertContains(res_auth, 'csrfmiddlewaretoken')
+
+        # Logout via POST
+        res_logout = self.client.post('/api-auth/logout/?next=/shop/')
+        self.assertEqual(res_logout.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(res_logout.headers.get('Location'), '/shop/')
+
+    def test_admin_can_approve_pending_order(self):
+        order = OrderService.create_order("CustomerA", [{"product_id": self.p1.id, "quantity": 2}])
+        self.p1.refresh_from_db()
+        self.assertEqual(self.p1.stock_quantity, 8)
+
+        # Non-staff customer attempt fails with 403
+        self.client.force_authenticate(user=self.customer1)
+        res_fail = self.client.post(f'/api/orders/{order.id}/approve/')
+        self.assertEqual(res_fail.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Admin approve succeeds
+        self.client.force_authenticate(user=self.admin_user)
+        res_ok = self.client.post(f'/api/orders/{order.id}/approve/')
+        self.assertEqual(res_ok.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_ok.data['status'], 'APPROVED')
+        self.assertIsNotNone(res_ok.data['approved_at'])
+
+        # Stock remains reserved
+        self.p1.refresh_from_db()
+        self.assertEqual(self.p1.stock_quantity, 8)
+
+    def test_admin_can_reject_pending_order_restores_stock(self):
+        order = OrderService.create_order("CustomerB", [{"product_id": self.p1.id, "quantity": 3}])
+        self.p1.refresh_from_db()
+        self.assertEqual(self.p1.stock_quantity, 7)
+
+        # Non-staff customer attempt fails with 403
+        self.client.force_authenticate(user=self.customer1)
+        res_fail = self.client.post(f'/api/orders/{order.id}/reject/')
+        self.assertEqual(res_fail.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Admin reject succeeds & restores stock
+        self.client.force_authenticate(user=self.admin_user)
+        res_ok = self.client.post(f'/api/orders/{order.id}/reject/')
+        self.assertEqual(res_ok.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_ok.data['status'], 'REJECTED')
+        self.assertIsNotNone(res_ok.data['rejected_at'])
+
+        # Stock restored
+        self.p1.refresh_from_db()
+        self.assertEqual(self.p1.stock_quantity, 10)
+
+    def test_approve_or_reject_non_pending_order_returns_409(self):
+        order = OrderService.create_order("CustomerC", [{"product_id": self.p1.id, "quantity": 1}])
+        self.client.force_authenticate(user=self.admin_user)
+
+        # Approve once
+        res_app = self.client.post(f'/api/orders/{order.id}/approve/')
+        self.assertEqual(res_app.status_code, status.HTTP_200_OK)
+
+        # Re-approve returns 409
+        res_app2 = self.client.post(f'/api/orders/{order.id}/approve/')
+        self.assertEqual(res_app2.status_code, status.HTTP_409_CONFLICT)
+
+        # Reject approved order returns 409
+        res_rej = self.client.post(f'/api/orders/{order.id}/reject/')
+        self.assertEqual(res_rej.status_code, status.HTTP_409_CONFLICT)
+
+
