@@ -13,7 +13,7 @@ The system includes pre-configured accounts for testing both **Admin** and **Cus
 | Role | Username | Password | Permissions & Capabilities |
 |---|---|---|---|
 | **Admin** | `admin` | `admin123` | **Full access**: Create, edit, delete products, set stock quantities, manage orders, and access the Django Admin site (`/admin/`). |
-| **Customer** | `customer` | `customer123 or hi2000pass` | **Customer access**: Browse/search products (read-only), create orders, reserve stock, and cancel orders. Cannot modify products (returns `403 Forbidden`). |
+| **Customer** | `customer` | `customer123 or hi2000pass (live)` | **Customer access**: Browse/search products (read-only), create orders, reserve stock, and cancel orders. Cannot modify products (returns `403 Forbidden`). |
 | **Guest / Anonymous** | *(none)* | *(none)* | **Public access**: Browse catalog, search, and view endpoints. |
 
 ---
