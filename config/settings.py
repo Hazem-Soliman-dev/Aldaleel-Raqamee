@@ -14,23 +14,7 @@ SECRET_KEY = os.getenv(
 
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't', 'yes')
 
-def _parse_allowed_hosts():
-    raw = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,web,.vercel.app,*')
-    hosts = []
-    for item in raw.split(','):
-        h = item.strip()
-        if not h:
-            continue
-        if '://' in h:
-            h = h.split('://', 1)[1]
-        h = h.split('/', 1)[0]
-        if h and h not in hosts:
-            hosts.append(h)
-    if '.vercel.app' not in hosts and '*' not in hosts:
-        hosts.append('.vercel.app')
-    return hosts
-
-ALLOWED_HOSTS = _parse_allowed_hosts()
+ALLOWED_HOSTS = ['*']
 
 def _parse_csrf_origins():
     raw = os.getenv('CSRF_TRUSTED_ORIGINS', 'https://*.vercel.app,http://localhost,http://127.0.0.1')
