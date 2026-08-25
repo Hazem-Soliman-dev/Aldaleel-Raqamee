@@ -36,11 +36,15 @@ Every endpoint in this project can be tested directly in your browser via **Djan
 
 | Screen | Browser URL | What to Test in Browser |
 |---|---|---|
-| **API Root** | `http://127.0.0.1:8000/api/` | Clickable directory linking to Products & Orders |
+| **Root Redirect** | `http://127.0.0.1:8000/` | Automatically redirects to `/shop/` storefront |
+| **Interactive Storefront** | `http://127.0.0.1:8000/shop/` | Visual shopping UI for browsing items, placing multi-item orders, and tracking/cancelling orders |
+| **API Root** | `http://127.0.0.1:8000/api/` | Clickable DRF directory linking to Products & Orders |
 | **Products List & Create** | `http://127.0.0.1:8000/api/products/` | Browse catalog, search (`?search=`), filter (`?is_active=`), or create items via bottom form (Admin only) |
 | **Product Detail & Actions** | `http://127.0.0.1:8000/api/products/1/` | Edit prices/stock via bottom form, or click red **DELETE** button to test soft-deletion |
 | **Orders List & Reserve** | `http://127.0.0.1:8000/api/orders/` | View orders, or paste JSON in the **Raw data** tab to reserve stock atomically |
 | **Order Cancellation** | `http://127.0.0.1:8000/api/orders/1/cancel/` | Click **POST** button to cancel order and restore stock |
+| **Order Approval** | `http://127.0.0.1:8000/api/orders/1/approve/` | Admin **POST** action to approve a pending order |
+| **Order Rejection** | `http://127.0.0.1:8000/api/orders/1/reject/` | Admin **POST** action to reject a pending order and restore stock |
 | **Django Admin Dashboard** | `http://127.0.0.1:8000/admin/` | Visual GUI table with inline order items (Login: `admin` / `admin123`) |
 
 ---
@@ -57,7 +61,7 @@ Every endpoint in this project can be tested directly in your browser via **Djan
    - **SKU:** `PAD-XXL-001`
    - **Price:** `29.99`
    - **Stock quantity:** `15`
-5. Click **POST** $	o$ `HTTP 201 Created` is returned and the product is live.
+5. Click **POST** -> `HTTP 201 Created` is returned and the product is live.
 
 #### Scenario B: Test Customer Role (Permission Protection on Products)
 1. Click your username in the top-right corner and select **"Log out"**.
@@ -80,8 +84,8 @@ Every endpoint in this project can be tested directly in your browser via **Djan
      ]
    }
    ```
-4. Click **POST** $	o$ You will receive `HTTP 201 Created`.
-5. Open `http://127.0.0.1:8000/api/products/1/` in another tab $	o$ Notice `stock_quantity` decreased by 2!
+4. Click **POST** -> You will receive `HTTP 201 Created`.
+5. Open `http://127.0.0.1:8000/api/products/1/` in another tab -> Notice `stock_quantity` decreased by 2!
 
 #### Scenario D: Test Insufficient Stock Rejection (HTTP 409 Conflict)
 1. On `http://127.0.0.1:8000/api/orders/`, in the **Raw data** tab, enter quantity `9999`:
@@ -93,7 +97,7 @@ Every endpoint in this project can be tested directly in your browser via **Djan
      ]
    }
    ```
-2. Click **POST** $	o$ The browser displays `HTTP 409 Conflict`:
+2. Click **POST** -> The browser displays `HTTP 409 Conflict`:
    ```json
    { "detail": "Insufficient stock for product 'MBP-M3-16' (ID: 1). Requested: 9999, Available: 12." }
    ```
@@ -101,27 +105,82 @@ Every endpoint in this project can be tested directly in your browser via **Djan
 
 #### Scenario E: Cancel an Order & Release Stock (US-003)
 1. Open `http://127.0.0.1:8000/api/orders/1/cancel/`
-2. Click the **POST** button $	o$ Status changes to `HTTP 200 OK`, `status` becomes `"CANCELLED"`, and `cancelled_at` timestamp is set.
-3. Check `http://127.0.0.1:8000/api/products/1/` $	o$ The stock is restored back to the product!
-4. **Test Double-Release Protection**: Click the **POST** button again on the cancel page $	o$ Browser returns `HTTP 409 Conflict` ("Only orders in 'PENDING' status can be cancelled.").
+2. Click the **POST** button -> Status changes to `HTTP 200 OK`, `status` becomes `"CANCELLED"`, and `cancelled_at` timestamp is set.
+3. Check `http://127.0.0.1:8000/api/products/1/` -> The stock is restored back to the product!
+4. **Test Double-Release Protection**: Click the **POST** button again on the cancel page -> Browser returns `HTTP 409 Conflict` ("Only orders in 'PENDING' status can be cancelled.").
 
-#### Scenario F: Django Admin Site
-1. Open `http://127.0.0.1:8000/admin/`
-2. Log in with `admin` / `admin123`.
-3. Click **Products** to see all items with inline editable stock and price columns.
-4. Click **Orders** to see all customer orders and their line items inline.
+#### Scenario F: Admin Approval & Rejection Flow
+1. **Order Approval**: Send `POST /api/orders/{id}/approve/` (Admin only). The order transitions from `PENDING` -> `APPROVED` and sets `approved_at`. Stock remains reserved.
+2. **Order Rejection**: Send `POST /api/orders/{id}/reject/` (Admin only). The order transitions from `PENDING` -> `REJECTED`, sets `rejected_at`, and automatically restores the reserved stock back to the product catalog.
+
+#### Scenario G: Visual Storefront UI (`/shop/`)
+1. Open `http://127.0.0.1:8000/` or `http://127.0.0.1:8000/shop/`.
+2. Browse active products with real-time stock indicators.
+3. Add items with custom quantities to the order cart and click **Place Order**.
+4. Order is processed atomically, and appears in the real-time order list below with quick actions (Cancel order, etc.).
+
+---
+
+## 🔄 System & Order Lifecycle Flow
+
+```
+                     ┌────────────────────────┐
+                     │   Browse / Request     │
+                     └───────────┬────────────┘
+                                 │
+                                 ▼
+                     ┌────────────────────────┐
+                     │  Create Order (POST)   │
+                     └───────────┬────────────┘
+                                 │
+              ┌──────────────────┴──────────────────┐
+              │ Atomic Stock Check & Lock           │
+              │ (select_for_update within atomic)   │
+              └──────────────────┬──────────────────┘
+                                 │
+                 ┌───────────────┴───────────────┐
+                 │                               │
+        Insufficient Stock              Sufficient Stock
+                 │                               │
+                 ▼                               ▼
+       [ HTTP 409 Conflict ]           Deduct stock quantity
+         (Atomic Rollback)             Set Order Status = PENDING
+                                                 │
+                                                 ▼
+                                     ┌───────────────────────┐
+                                     │     ORDER PENDING     │
+                                     └───────────┬───────────┘
+                                                 │
+                   ┌─────────────────────────────┼─────────────────────────────┐
+                   │                             │                             │
+                   ▼                             ▼                             ▼
+       Customer/Admin Cancel           Admin Approve Action           Admin Reject Action
+        POST /orders/1/cancel/          POST /orders/1/approve/        POST /orders/1/reject/
+                   │                             │                             │
+                   ▼                             ▼                             ▼
+        Restore Stock Quantity          Stock Remains Reserved         Restore Stock Quantity
+        Status = CANCELLED              Status = APPROVED              Status = REJECTED
+        Set `cancelled_at`              Set `approved_at`              Set `rejected_at`
+```
 
 ---
 
 ## 🌟 Key Features
 
+- **Interactive Visual Storefront (`/shop/`)**: Front-end shopping UI served at `/shop/` (and redirected from `/`) with interactive cart building, real-time stock updates, and order history tracking.
 - **Role-Based Access Control**:
-  - **Admins (`is_staff=True`)**: Full product management (CRUD) & order management.
-  - **Customers (`is_staff=False`)**: Browse catalog, create orders, reserve stock, and cancel orders.
+  - **Admins (`is_staff=True`)**: Full product management (CRUD), view all customer orders, and approve/reject orders.
+  - **Customers (`is_staff=False`)**: Browse active catalog, create orders, reserve stock, and cancel their own pending orders.
+  - **Guests**: Browsing catalog, creating orders with session-tracked order history.
 - **Product Management (US-001)**: Full CRUD API with validation (`price > 0`, `stock_quantity >= 0`, unique `sku`), soft deletion (`is_active=False`), search, and filtering.
 - **Atomic Stock Reservation (US-002)**: Multi-item order creation with row locking (`select_for_update()`) inside an atomic transaction. If any item has insufficient stock, the transaction rolls back cleanly with **zero partial reservation**.
-- **Safe Stock Release (US-003)**: Idempotent cancellation endpoint (`POST /api/orders/{id}/cancel/`) that restores reserved product quantities and locks the order status. Rejects invalid transitions or double cancellations with `409 Conflict`.
-- **Concurrency & Deadlock Safety**: Deterministic sorted lock acquisition on products prevents database deadlocks. Tested under concurrent load.
+- **Order Lifecycle Management**:
+  - `PENDING`: Initial state upon order creation with reserved stock.
+  - `APPROVED`: Admin approves order (`POST /api/orders/{id}/approve/`), finalizing stock reservation.
+  - `REJECTED`: Admin rejects order (`POST /api/orders/{id}/reject/`), restoring reserved stock.
+  - `CANCELLED`: Customer/Admin cancels order (`POST /api/orders/{id}/cancel/`), restoring reserved stock.
+- **Safe Stock Release (US-003)**: Idempotent cancellation and rejection endpoints that restore reserved product quantities and lock order status. Rejects invalid state transitions or double releases with `409 Conflict`.
+- **Concurrency & Deadlock Safety**: Deterministic sorted lock acquisition on products prevents database deadlocks under high concurrency.
 - **Dual Database Architecture**: Defaults to **SQLite** for zero-friction local development, and switches automatically to **PostgreSQL 16** via Docker Compose or `DATABASE_URL`.
 - **Database Backup & Seed Fixture**: Pre-populated sample data fixture (`backup.json`) with sample products and orders.
 
@@ -182,6 +241,7 @@ Every endpoint in this project can be tested directly in your browser via **Djan
    ```bash
    python manage.py runserver
    ```
+   - **Visual Storefront UI**: `http://127.0.0.1:8000/` (Redirects to `http://127.0.0.1:8000/shop/`)
    - **Interactive API Browser**: `http://127.0.0.1:8000/api/`
    - **Django Admin UI**: `http://127.0.0.1:8000/admin/` (Login: `admin` / `admin123`)
 
@@ -245,15 +305,19 @@ A cross-database JSON fixture is committed at `backup.json` containing sample pr
 
 | Method | Path | Purpose | Role Required | Status Codes |
 |---|---|---|---|---|
+| `GET` | `/` | Redirects to Visual Storefront (`/shop/`) | Public / Any | `302 Found` |
+| `GET` | `/shop/` | Interactive Visual Storefront UI | Public / Any | `200 OK` |
 | `GET` | `/api/products/` | List products (paginated, search & filter) | Public / Any | `200 OK` |
 | `POST` | `/api/products/` | Create product | **Admin** | `201 Created`, `400 Bad Request`, `403 Forbidden` |
 | `GET` | `/api/products/{id}/` | Retrieve product | Public / Any | `200 OK`, `404 Not Found` |
 | `PUT/PATCH` | `/api/products/{id}/` | Update product | **Admin** | `200 OK`, `400 Bad Request`, `403 Forbidden`, `404 Not Found` |
 | `DELETE` | `/api/products/{id}/` | Soft-delete product (`is_active=False`) | **Admin** | `204 No Content`, `403 Forbidden`, `404 Not Found` |
+| `GET` | `/api/orders/` | List orders (paginated, filter by status) | Customer / Admin | `200 OK` |
 | `POST` | `/api/orders/` | Create order & reserve stock atomically | Customer / Admin | `201 Created`, `400 Bad Request`, `409 Conflict` |
-| `GET` | `/api/orders/` | List orders (paginated, filter by status) | Public / Any | `200 OK` |
-| `GET` | `/api/orders/{id}/` | Retrieve order + items + total | Public / Any | `200 OK`, `404 Not Found` |
-| `POST` | `/api/orders/{id}/cancel/` | Cancel order & restore stock | Customer / Admin | `200 OK`, `404 Not Found`, `409 Conflict` |
+| `GET` | `/api/orders/{id}/` | Retrieve order + items + total | Customer / Admin | `200 OK`, `404 Not Found` |
+| `POST` | `/api/orders/{id}/cancel/` | Cancel pending order & restore stock | Customer / Admin | `200 OK`, `404 Not Found`, `409 Conflict` |
+| `POST` | `/api/orders/{id}/approve/` | Approve pending order | **Admin** | `200 OK`, `403 Forbidden`, `404 Not Found`, `409 Conflict` |
+| `POST` | `/api/orders/{id}/reject/` | Reject pending order & restore stock | **Admin** | `200 OK`, `403 Forbidden`, `404 Not Found`, `409 Conflict` |
 
 ---
 
