@@ -10,6 +10,7 @@ if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
         from django.core.management import call_command
         from django.conf import settings
         from django.db import connection
+        from django.contrib.auth import get_user_model
 
         # Run migrations if tables do not exist
         if 'products_product' not in connection.introspection.table_names():
@@ -17,5 +18,13 @@ if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
             backup_file = Path(settings.BASE_DIR) / 'backup.json'
             if backup_file.exists():
                 call_command('loaddata', str(backup_file), verbosity=0)
+
+        # Ensure an admin superuser exists
+        User = get_user_model()
+        if not User.objects.filter(is_superuser=True).exists():
+            admin_user = os.getenv('ADMIN_USERNAME', 'admin')
+            admin_email = os.getenv('ADMIN_EMAIL', 'admin@example.com')
+            admin_pass = os.getenv('ADMIN_PASSWORD', 'admin123')
+            User.objects.create_superuser(admin_user, admin_email, admin_pass)
     except Exception as e:
         print("Vercel DB initialization error:", e)
