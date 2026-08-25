@@ -12,8 +12,9 @@ if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
         from django.db import connection
         from django.contrib.auth import get_user_model
 
-        # Run migrations if tables do not exist
-        if 'products_product' not in connection.introspection.table_names():
+        # Run migrations if essential tables do not exist
+        existing_tables = connection.introspection.table_names()
+        if 'products_product' not in existing_tables or 'auth_group' not in existing_tables or 'django_session' not in existing_tables:
             call_command('migrate', interactive=False, verbosity=0)
             backup_file = Path(settings.BASE_DIR) / 'backup.json'
             if backup_file.exists():
