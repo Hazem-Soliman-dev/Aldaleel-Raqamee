@@ -14,6 +14,7 @@ Built with ACID transactional guarantees, row-level locking (`select_for_update`
 - **Concurrency & Deadlock Safety**: Deterministic sorted lock acquisition on products prevents database deadlocks. Tested under concurrent load.
 - **Dual Database Architecture**: Defaults to **SQLite** for zero-friction local development, and switches automatically to **PostgreSQL 16** via Docker Compose or `DATABASE_URL`.
 - **Django Admin UI**: Integrated administrative interface at `/admin/` with inline order items, search, and status filters.
+- **Interactive Browsable API**: DRF interactive web UI for testing every endpoint directly in the browser with HTML forms.
 - **Database Backup & Seed Fixture**: Pre-populated sample data fixture (`backup.json`) with sample products and orders.
 
 ---
@@ -69,17 +70,12 @@ Built with ACID transactional guarantees, row-level locking (`select_for_update`
    python manage.py loaddata backup.json
    ```
 
-7. **Create a superuser (for Django Admin UI):**
-   ```bash
-   python manage.py createsuperuser
-   ```
-
-8. **Start the development server:**
+7. **Start the development server:**
    ```bash
    python manage.py runserver
    ```
-   - REST API: `http://127.0.0.1:8000/api/`
-   - Admin UI: `http://127.0.0.1:8000/admin/`
+   - **Interactive API Browser**: `http://127.0.0.1:8000/api/`
+   - **Django Admin UI**: `http://127.0.0.1:8000/admin/` (Login: `admin` / `admin123`)
 
 ---
 
@@ -96,12 +92,7 @@ Built with ACID transactional guarantees, row-level locking (`select_for_update`
    docker-compose exec web python manage.py loaddata backup.json
    ```
 
-3. **(Optional) Create superuser inside container:**
-   ```bash
-   docker-compose exec web python manage.py createsuperuser
-   ```
-
-4. **Stop containers:**
+3. **Stop containers:**
    ```bash
    docker-compose down
    ```
@@ -253,7 +244,7 @@ A cross-database JSON fixture is committed at `backup.json` containing sample pr
 
 1. **Assumption A (Authentication & Authorization Scope)**:
    - No authentication or permission system is enforced on API endpoints. The user stories reference "admin" (managing products) and "customer" (creating orders) as functional roles for narrative clarity rather than an enforced authentication layer. Endpoints are open for transparent evaluation and automated testing.
-   - The built-in Django Admin (`/admin/`) is fully registered and available for administrative inspection.
+   - The built-in Django Admin (`/admin/`) is fully registered and available for administrative inspection with pre-configured credentials (`admin` / `admin123`).
 
 2. **Assumption B (Stock Reservation Model)**:
    - Stock reservation directly decrements `Product.stock_quantity` upon order creation (`PENDING`).
