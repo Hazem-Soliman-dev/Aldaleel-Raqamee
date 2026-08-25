@@ -195,7 +195,12 @@
                                         <td class="text-end">
                                             {% if product.stock_quantity > 0 %}
                                                 <button class="btn btn-sm btn-outline-primary px-3" 
-                                                        onclick="addToCart({{ product.id }}, '{{ product.name|escapejs }}', '{{ product.sku|escapejs }}', {{ product.price }}, {{ product.stock_quantity }})">
+                                                        data-id="{{ product.id }}"
+                                                        data-name="{{ product.name|escapejs }}"
+                                                        data-sku="{{ product.sku|escapejs }}"
+                                                        data-price="{{ product.price }}"
+                                                        data-stock="{{ product.stock_quantity }}"
+                                                        onclick="handleAddToCart(this)">
                                                     <i class="bi bi-plus-lg me-1"></i>Add
                                                 </button>
                                             {% else %}
@@ -370,15 +375,15 @@
                                 {% if order.status == 'PENDING' %}
                                     {% if user.is_staff or user.is_superuser %}
                                         <div class="d-flex gap-2">
-                                            <button class="btn btn-sm btn-success flex-fill" onclick="approveOrder({{ order.id }})">
+                                            <button class="btn btn-sm btn-success flex-fill" data-order-id="{{ order.id }}" onclick="approveOrder(this.dataset.orderId)">
                                                 <i class="bi bi-check-lg me-1"></i>Approve Order
                                             </button>
-                                            <button class="btn btn-sm btn-danger flex-fill" onclick="rejectOrder({{ order.id }})">
+                                            <button class="btn btn-sm btn-danger flex-fill" data-order-id="{{ order.id }}" onclick="rejectOrder(this.dataset.orderId)">
                                                 <i class="bi bi-x-lg me-1"></i>Reject & Release
                                             </button>
                                         </div>
                                     {% else %}
-                                        <button class="btn btn-sm btn-outline-danger w-100" onclick="cancelOrder({{ order.id }})">
+                                        <button class="btn btn-sm btn-outline-danger w-100" data-order-id="{{ order.id }}" onclick="cancelOrder(this.dataset.orderId)">
                                             <i class="bi bi-arrow-counterclockwise me-1"></i>Cancel & Release Stock
                                         </button>
                                     {% endif %}
@@ -403,7 +408,7 @@
 
     <!-- Interactive Cart & Reservation JavaScript -->
     <script>
-        const isUserAuthenticated = {% if user.is_authenticated %}true{% else %}false{% endif %};
+        const isUserAuthenticated = "{{ user.is_authenticated|yesno:'true,false' }}" === "true";
         const cart = new Map();
 
         function getCookie(name) {
@@ -428,6 +433,15 @@
             txt.innerHTML = msg;
             box.classList.remove('d-none');
             window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function handleAddToCart(btn) {
+            const id = parseInt(btn.dataset.id, 10);
+            const name = btn.dataset.name;
+            const sku = btn.dataset.sku;
+            const price = parseFloat(btn.dataset.price);
+            const stock = parseInt(btn.dataset.stock, 10);
+            addToCart(id, name, sku, price, stock);
         }
 
         function addToCart(id, name, sku, price, maxStock) {

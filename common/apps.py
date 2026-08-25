@@ -1,4 +1,4 @@
-﻿from django.apps import AppConfig
+from django.apps import AppConfig
 
 class CommonConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
@@ -6,3 +6,6 @@ class CommonConfig(AppConfig):
 
     def ready(self):
         import common.signals
+        from django.contrib.auth.models import Group
+        from django.contrib import admin
+        admin.site.unregister(Group)
