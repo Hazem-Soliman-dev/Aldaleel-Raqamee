@@ -12,13 +12,20 @@ if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
         from django.db import connection
         from django.contrib.auth import get_user_model
 
-        # Run migrations if essential tables do not exist
         existing_tables = connection.introspection.table_names()
-        if 'products_product' not in existing_tables or 'auth_group' not in existing_tables or 'django_session' not in existing_tables:
-            call_command('migrate', interactive=False, verbosity=0)
+        is_new_db = 'products_product' not in existing_tables
+
+        # Always ensure database migrations are fully applied
+        call_command('migrate', interactive=False, verbosity=0)
+
+        # Load backup data if this is a fresh database instance
+        if is_new_db:
             backup_file = Path(settings.BASE_DIR) / 'backup.json'
             if backup_file.exists():
-                call_command('loaddata', str(backup_file), verbosity=0)
+                try:
+                    call_command('loaddata', str(backup_file), verbosity=0)
+                except Exception:
+                    pass
 
         # Ensure an admin superuser exists
         User = get_user_model()
