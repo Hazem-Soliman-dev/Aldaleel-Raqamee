@@ -107,7 +107,7 @@ else:
     db_path = BASE_DIR / 'db.sqlite3'
     if os.getenv('VERCEL') or os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
         tmp_db = Path('/tmp/db.sqlite3')
-        if db_path.exists():
+        if not tmp_db.exists() and db_path.exists():
             try:
                 shutil.copy2(db_path, tmp_db)
             except Exception:
