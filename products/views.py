@@ -2,16 +2,20 @@
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+
+from common.permissions import IsAdminOrReadOnly
 from .models import Product
 from .serializers import ProductSerializer
 
 class ProductViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing products and stock levels (US-001 / TASK-001..TASK-005).
-    Supports listing, creation, retrieval, full/partial update, and soft deletion.
+    - Admins (is_staff=True): Full access (Create, Update, Delete).
+    - Customers / Anonymous: Read-only access (List, Retrieve, Search, Filter).
     """
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    permission_classes = [IsAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'sku', 'description']

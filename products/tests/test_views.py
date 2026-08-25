@@ -1,13 +1,26 @@
 ﻿from decimal import Decimal
 from django.test import TestCase
-from django.urls import reverse
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
 from products.models import Product
 
+User = get_user_model()
+
 class ProductAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.admin_user = User.objects.create_superuser(
+            username='testadmin',
+            email='admin@test.com',
+            password='pass'
+        )
+        self.customer_user = User.objects.create_user(
+            username='testcustomer',
+            email='customer@test.com',
+            password='pass'
+        )
+
         self.p1 = Product.objects.create(
             name="Mechanical Keyboard",
             sku="KEY-001",
@@ -33,10 +46,9 @@ class ProductAPITest(TestCase):
             is_active=False
         )
 
-    def test_list_products_pagination(self):
+    def test_list_products_publicly_accessible(self):
         response = self.client.get('/api/products/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('results', response.data)
         self.assertEqual(response.data['count'], 3)
 
     def test_list_products_custom_page_size(self):
@@ -76,7 +88,8 @@ class ProductAPITest(TestCase):
         response = self.client.get('/api/products/99999/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    def test_create_product_success(self):
+    def test_admin_can_create_product(self):
+        self.client.force_authenticate(user=self.admin_user)
         payload = {
             "name": "USB-C Hub",
             "sku": "HUB-004",
@@ -90,7 +103,29 @@ class ProductAPITest(TestCase):
         self.assertEqual(response.data['sku'], "HUB-004")
         self.assertTrue(Product.objects.filter(sku="HUB-004").exists())
 
+    def test_customer_cannot_create_product_returns_403(self):
+        self.client.force_authenticate(user=self.customer_user)
+        payload = {
+            "name": "Unauthorized Item",
+            "sku": "UNAUTH-001",
+            "price": "19.99",
+            "stock_quantity": 10
+        }
+        response = self.client.post('/api/products/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonymous_cannot_create_product_returns_403(self):
+        payload = {
+            "name": "Anon Item",
+            "sku": "ANON-001",
+            "price": "19.99",
+            "stock_quantity": 10
+        }
+        response = self.client.post('/api/products/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_create_product_invalid_price_rejected(self):
+        self.client.force_authenticate(user=self.admin_user)
         payload = {
             "name": "Zero Price Item",
             "sku": "ZERO-001",
@@ -102,6 +137,7 @@ class ProductAPITest(TestCase):
         self.assertIn('price', response.data)
 
     def test_create_product_negative_stock_rejected(self):
+        self.client.force_authenticate(user=self.admin_user)
         payload = {
             "name": "Negative Stock Item",
             "sku": "NEG-002",
@@ -113,6 +149,7 @@ class ProductAPITest(TestCase):
         self.assertIn('stock_quantity', response.data)
 
     def test_create_product_duplicate_sku_rejected(self):
+        self.client.force_authenticate(user=self.admin_user)
         payload = {
             "name": "Another Keyboard",
             "sku": "KEY-001",
@@ -123,7 +160,8 @@ class ProductAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('sku', response.data)
 
-    def test_update_product(self):
+    def test_admin_can_update_product(self):
+        self.client.force_authenticate(user=self.admin_user)
         payload = {"price": "89.99", "stock_quantity": 20}
         response = self.client.patch(f'/api/products/{self.p1.id}/', payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -131,8 +169,20 @@ class ProductAPITest(TestCase):
         self.assertEqual(self.p1.price, Decimal("89.99"))
         self.assertEqual(self.p1.stock_quantity, 20)
 
-    def test_delete_product_performs_soft_delete(self):
+    def test_customer_cannot_update_product_returns_403(self):
+        self.client.force_authenticate(user=self.customer_user)
+        payload = {"price": "1.99"}
+        response = self.client.patch(f'/api/products/{self.p1.id}/', payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_soft_delete_product(self):
+        self.client.force_authenticate(user=self.admin_user)
         response = self.client.delete(f'/api/products/{self.p1.id}/')
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         self.p1.refresh_from_db()
         self.assertFalse(self.p1.is_active)
+
+    def test_customer_cannot_delete_product_returns_403(self):
+        self.client.force_authenticate(user=self.customer_user)
+        response = self.client.delete(f'/api/products/{self.p1.id}/')
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

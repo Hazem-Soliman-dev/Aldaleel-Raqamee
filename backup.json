@@ -108,7 +108,21 @@
     "stock_quantity": 0,
     "is_active": false,
     "created_at": "2026-08-25T08:43:46.641Z",
-    "updated_at": "2026-08-25T08:43:46.641Z"
+    "updated_at": "2026-08-25T09:20:31.061Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 9,
+  "fields": {
+    "name": "pro1",
+    "sku": "123",
+    "description": "pro1 des",
+    "price": "10.00",
+    "stock_quantity": 20,
+    "is_active": false,
+    "created_at": "2026-08-25T09:19:20.017Z",
+    "updated_at": "2026-08-25T09:20:11.104Z"
   }
 },
 {

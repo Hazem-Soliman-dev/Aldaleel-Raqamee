@@ -16,5 +16,6 @@ def root_redirect(request):
 urlpatterns = [
     path('', root_redirect, name='root-redirect'),
     path('admin/', admin.site.urls),
+    path('api-auth/', include('rest_framework.urls')),
     path('api/', include(router.urls)),
 ]

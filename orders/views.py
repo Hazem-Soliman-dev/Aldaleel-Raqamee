@@ -11,7 +11,7 @@ from .services import OrderService
 class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for managing Orders and Stock Reservations.
-    - POST /api/orders/ : Create order and reserve stock atomically
+    - POST /api/orders/ : Create order and reserve stock atomically (Customers & Admins)
     - GET  /api/orders/ : List all orders with pagination & filters
     - GET  /api/orders/{id}/ : Retrieve order details and items
     - POST /api/orders/{id}/cancel/ : Cancel order and release reserved stock
@@ -27,9 +27,13 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Create order and reserve stock atomically (US-002).
-        Returns 201 Created on success, 400 on validation error, 409 on insufficient stock.
+        If customer is logged in and customer_name is omitted, defaults to username.
         """
-        serializer = OrderCreateSerializer(data=request.data)
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        if not data.get('customer_name') and request.user and request.user.is_authenticated:
+            data['customer_name'] = request.user.get_full_name() or request.user.username
+
+        serializer = OrderCreateSerializer(data=data)
         serializer.is_valid(raise_exception=True)
 
         order = OrderService.create_order(
@@ -45,7 +49,6 @@ class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     def cancel(self, request, pk=None):
         """
         Cancel a PENDING order and safely release reserved stock (US-003).
-        Returns 200 OK on success, 404 if not found, 409 if already cancelled or invalid state.
         """
         order = OrderService.cancel_order(order_id=pk)
         order_detailed = Order.objects.prefetch_related('items__product').get(id=order.id)
