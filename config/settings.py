@@ -16,8 +16,14 @@ DEBUG = os.getenv('DEBUG', 'True').lower() in ('true', '1', 't', 'yes')
 
 ALLOWED_HOSTS = [
     host.strip()
-    for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,web').split(',')
+    for host in os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0,web,.vercel.app').split(',')
     if host.strip()
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv('CSRF_TRUSTED_ORIGINS', 'https://aldaleel-raqamee-eight.vercel.app,http://localhost,http://127.0.0.1').split(',')
+    if origin.strip()
 ]
 
 INSTALLED_APPS = [
