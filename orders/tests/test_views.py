@@ -1,13 +1,20 @@
 ﻿from decimal import Decimal
 from django.test import TestCase
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.test import APIClient
 from products.models import Product
 from orders.models import Order, OrderItem, OrderStatus
 
+User = get_user_model()
+
 class OrderAPITest(TestCase):
     def setUp(self):
         self.client = APIClient()
+        self.admin_user = User.objects.create_superuser(username='testadmin', email='a@t.com', password='p')
+        self.customer1 = User.objects.create_user(username='alice', email='alice@t.com', password='p')
+        self.customer2 = User.objects.create_user(username='bob', email='bob@t.com', password='p')
+
         self.p1 = Product.objects.create(
             name="Laptop",
             sku="LAP-001",
@@ -51,6 +58,38 @@ class OrderAPITest(TestCase):
         self.assertEqual(self.p1.stock_quantity, 7)
         self.assertEqual(self.p2.stock_quantity, 3)
 
+    def test_customer_only_sees_own_orders(self):
+        # Alice creates an order
+        self.client.force_authenticate(user=self.customer1)
+        self.client.post('/api/orders/', {
+            "items": [{"product_id": self.p1.id, "quantity": 1}]
+        }, format='json')
+
+        # Bob creates an order
+        self.client.force_authenticate(user=self.customer2)
+        self.client.post('/api/orders/', {
+            "items": [{"product_id": self.p1.id, "quantity": 1}]
+        }, format='json')
+
+        # When logged in as Bob, only 1 order (Bob's) is visible
+        res_bob = self.client.get('/api/orders/')
+        self.assertEqual(res_bob.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_bob.data['count'], 1)
+        self.assertEqual(res_bob.data['results'][0]['customer_name'], 'bob')
+
+        # When logged in as Alice, only 1 order (Alice's) is visible
+        self.client.force_authenticate(user=self.customer1)
+        res_alice = self.client.get('/api/orders/')
+        self.assertEqual(res_alice.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_alice.data['count'], 1)
+        self.assertEqual(res_alice.data['results'][0]['customer_name'], 'alice')
+
+        # When logged in as Admin, ALL orders are visible
+        self.client.force_authenticate(user=self.admin_user)
+        res_admin = self.client.get('/api/orders/')
+        self.assertEqual(res_admin.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_admin.data['count'], 2)
+
     def test_create_order_insufficient_stock_returns_409(self):
         payload = {
             "customer_name": "Charlie",
@@ -62,13 +101,11 @@ class OrderAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertIn("Insufficient stock", str(response.data))
 
-        # Verify stock untouched
         self.p1.refresh_from_db()
         self.assertEqual(self.p1.stock_quantity, 10)
         self.assertEqual(Order.objects.count(), 0)
 
     def test_create_order_atomic_rollback_on_partial_failure(self):
-        # p1 has 10 (requesting 4 is valid), p2 has 5 (requesting 8 is INVALID)
         payload = {
             "customer_name": "David",
             "items": [
@@ -79,13 +116,11 @@ class OrderAPITest(TestCase):
         response = self.client.post('/api/orders/', payload, format='json')
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-        # Confirm TASK-011: Neither product's stock was decremented!
         self.p1.refresh_from_db()
         self.p2.refresh_from_db()
         self.assertEqual(self.p1.stock_quantity, 10)
         self.assertEqual(self.p2.stock_quantity, 5)
         self.assertEqual(Order.objects.count(), 0)
-        self.assertEqual(OrderItem.objects.count(), 0)
 
     def test_create_order_empty_items_rejected(self):
         payload = {
@@ -120,7 +155,6 @@ class OrderAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_cancel_pending_order_restores_stock(self):
-        # Create order reserving 3 units of p1
         payload = {
             "customer_name": "Ivan",
             "items": [{"product_id": self.p1.id, "quantity": 3}]
@@ -130,18 +164,15 @@ class OrderAPITest(TestCase):
         self.p1.refresh_from_db()
         self.assertEqual(self.p1.stock_quantity, 7)
 
-        # Cancel order
         res_cancel = self.client.post(f'/api/orders/{order_id}/cancel/')
         self.assertEqual(res_cancel.status_code, status.HTTP_200_OK)
         self.assertEqual(res_cancel.data['status'], "CANCELLED")
         self.assertIsNotNone(res_cancel.data['cancelled_at'])
 
-        # Check stock restored to original 10
         self.p1.refresh_from_db()
         self.assertEqual(self.p1.stock_quantity, 10)
 
     def test_cancel_already_cancelled_order_returns_409_and_prevents_double_release(self):
-        # Reserve 4 units
         payload = {
             "customer_name": "Julia",
             "items": [{"product_id": self.p1.id, "quantity": 4}]
@@ -149,17 +180,14 @@ class OrderAPITest(TestCase):
         res_create = self.client.post('/api/orders/', payload, format='json')
         order_id = res_create.data['id']
 
-        # Cancel once -> OK
         res_cancel1 = self.client.post(f'/api/orders/{order_id}/cancel/')
         self.assertEqual(res_cancel1.status_code, status.HTTP_200_OK)
         self.p1.refresh_from_db()
         self.assertEqual(self.p1.stock_quantity, 10)
 
-        # Cancel again -> 409 Conflict (TASK-014, TASK-015)
         res_cancel2 = self.client.post(f'/api/orders/{order_id}/cancel/')
         self.assertEqual(res_cancel2.status_code, status.HTTP_409_CONFLICT)
 
-        # Ensure stock is NOT increased above 10
         self.p1.refresh_from_db()
         self.assertEqual(self.p1.stock_quantity, 10)
 

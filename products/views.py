@@ -10,10 +10,9 @@ from .serializers import ProductSerializer
 class ProductViewSet(viewsets.ModelViewSet):
     """
     ViewSet for managing products and stock levels (US-001 / TASK-001..TASK-005).
-    - Admins (is_staff=True): Full access (Create, Update, Delete).
-    - Customers / Anonymous: Read-only access (List, Retrieve, Search, Filter).
+    - Admins (is_staff=True): Full access and can see all products (active + inactive).
+    - Customers / Anonymous: Read-only access and ONLY see active products (is_active=True).
     """
-    queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -21,6 +20,13 @@ class ProductViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'sku', 'description']
     ordering_fields = ['id', 'name', 'price', 'stock_quantity', 'created_at']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user and (user.is_staff or user.is_superuser):
+            return Product.objects.all()
+        # Customers and guests only see active products
+        return Product.objects.filter(is_active=True)
 
     def perform_destroy(self, instance):
         """

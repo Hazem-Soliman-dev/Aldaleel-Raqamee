@@ -46,15 +46,26 @@ class ProductAPITest(TestCase):
             is_active=False
         )
 
-    def test_list_products_publicly_accessible(self):
+    def test_customer_only_sees_active_products(self):
+        # Customers & anonymous users only see active products (p1 and p2)
+        response = self.client.get('/api/products/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 2)
+        skus = [p['sku'] for p in response.data['results']]
+        self.assertIn('KEY-001', skus)
+        self.assertIn('MOUSE-002', skus)
+        self.assertNotIn('CBL-003', skus)
+
+    def test_admin_sees_all_products(self):
+        self.client.force_authenticate(user=self.admin_user)
         response = self.client.get('/api/products/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 3)
 
     def test_list_products_custom_page_size(self):
-        response = self.client.get('/api/products/?page_size=2')
+        response = self.client.get('/api/products/?page_size=1')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data['results']), 2)
+        self.assertEqual(len(response.data['results']), 1)
 
     def test_search_products_by_name(self):
         response = self.client.get('/api/products/?search=Keyboard')
@@ -68,25 +79,22 @@ class ProductAPITest(TestCase):
         self.assertEqual(response.data['count'], 1)
         self.assertEqual(response.data['results'][0]['name'], 'Wireless Mouse')
 
-    def test_filter_products_by_is_active(self):
-        response = self.client.get('/api/products/?is_active=true')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['count'], 2)
-
-        response_inactive = self.client.get('/api/products/?is_active=false')
-        self.assertEqual(response_inactive.status_code, status.HTTP_200_OK)
-        self.assertEqual(response_inactive.data['count'], 1)
-        self.assertEqual(response_inactive.data['results'][0]['sku'], 'CBL-003')
-
-    def test_retrieve_product(self):
+    def test_retrieve_active_product(self):
         response = self.client.get(f'/api/products/{self.p1.id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['sku'], 'KEY-001')
         self.assertEqual(response.data['stock_quantity'], 15)
 
-    def test_retrieve_non_existent_product(self):
-        response = self.client.get('/api/products/99999/')
+    def test_customer_cannot_retrieve_inactive_product(self):
+        # Inactive product returns 404 for customers
+        response = self.client.get(f'/api/products/{self.p3_inactive.id}/')
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_admin_can_retrieve_inactive_product(self):
+        self.client.force_authenticate(user=self.admin_user)
+        response = self.client.get(f'/api/products/{self.p3_inactive.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['sku'], 'CBL-003')
 
     def test_admin_can_create_product(self):
         self.client.force_authenticate(user=self.admin_user)

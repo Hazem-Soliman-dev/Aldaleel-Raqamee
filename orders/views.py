@@ -11,18 +11,35 @@ from .services import OrderService
 class OrderViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for managing Orders and Stock Reservations.
-    - POST /api/orders/ : Create order and reserve stock atomically (Customers & Admins)
-    - GET  /api/orders/ : List all orders with pagination & filters
-    - GET  /api/orders/{id}/ : Retrieve order details and items
-    - POST /api/orders/{id}/cancel/ : Cancel order and release reserved stock
+    - Admins: See all orders across all customers.
+    - Authenticated Customers: Automatically isolated to ONLY see their own orders.
+    - Guests / Anonymous: Can view their created order details or filter by customer_name.
     """
-    queryset = Order.objects.prefetch_related('items__product').all()
     serializer_class = OrderDetailSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status']
     search_fields = ['customer_name', 'id']
     ordering_fields = ['id', 'created_at', 'status']
     ordering = ['-created_at']
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Order.objects.prefetch_related('items__product')
+        if user and (user.is_staff or user.is_superuser):
+            # Admins see all orders
+            return queryset.all()
+        elif user and user.is_authenticated:
+            # Customers only see their own orders
+            names = [user.username]
+            if user.get_full_name():
+                names.append(user.get_full_name())
+            return queryset.filter(customer_name__in=names)
+        
+        # Guest / anonymous filtering
+        customer_name = self.request.query_params.get('customer_name')
+        if customer_name:
+            return queryset.filter(customer_name=customer_name)
+        return queryset.all()
 
     def create(self, request, *args, **kwargs):
         """
