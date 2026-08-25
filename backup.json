@@ -1,0 +1,166 @@
+[
+{
+  "model": "products.product",
+  "pk": 1,
+  "fields": {
+    "name": "MacBook Pro 16-inch M3 Max",
+    "sku": "MBP-M3-16",
+    "description": "Apple M3 Max chip with 16-core CPU and 40-core GPU, 48GB Unified Memory, 1TB SSD Storage.",
+    "price": "3499.00",
+    "stock_quantity": 14,
+    "is_active": true,
+    "created_at": "2026-08-25T08:43:46.638Z",
+    "updated_at": "2026-08-25T08:43:46.638Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 2,
+  "fields": {
+    "name": "Dell UltraSharp 32-inch 4K Monitor",
+    "sku": "DELL-U3223QE",
+    "description": "31.5-inch 4K UHD IPS Black monitor with 2000:1 contrast ratio, 98% DCI-P3, USB-C Hub.",
+    "price": "899.99",
+    "stock_quantity": 25,
+    "is_active": true,
+    "created_at": "2026-08-25T08:43:46.640Z",
+    "updated_at": "2026-08-25T08:43:46.640Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 3,
+  "fields": {
+    "name": "Keychron Q1 Pro Wireless Mechanical Keyboard",
+    "sku": "KEY-Q1PRO",
+    "description": "QMK/VIA wireless custom mechanical keyboard with aluminum body and hot-swappable switches.",
+    "price": "199.99",
+    "stock_quantity": 50,
+    "is_active": true,
+    "created_at": "2026-08-25T08:43:46.640Z",
+    "updated_at": "2026-08-25T08:43:46.640Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 4,
+  "fields": {
+    "name": "Logitech MX Master 3S Wireless Mouse",
+    "sku": "LOGI-MX3S",
+    "description": "Ergonomic performance mouse with 8K DPI sensor, quiet clicks, and MagSpeed scrolling.",
+    "price": "99.99",
+    "stock_quantity": 39,
+    "is_active": true,
+    "created_at": "2026-08-25T08:43:46.640Z",
+    "updated_at": "2026-08-25T08:43:46.640Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 5,
+  "fields": {
+    "name": "Sony WH-1000XM5 Wireless Headphones",
+    "sku": "SONY-XM5-BLK",
+    "description": "Industry-leading noise canceling wireless headphones with Auto NC Optimizer and crystal clear hands-free calling.",
+    "price": "398.00",
+    "stock_quantity": 30,
+    "is_active": true,
+    "created_at": "2026-08-25T08:43:46.640Z",
+    "updated_at": "2026-08-25T08:43:46.640Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 6,
+  "fields": {
+    "name": "Ergonomic Mesh Office Chair",
+    "sku": "CHR-ERG-01",
+    "description": "Breathable high-back ergonomic desk chair with 3D adjustable armrests and lumbar support.",
+    "price": "450.00",
+    "stock_quantity": 10,
+    "is_active": true,
+    "created_at": "2026-08-25T08:43:46.641Z",
+    "updated_at": "2026-08-25T08:43:46.641Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 7,
+  "fields": {
+    "name": "Anker 737 Power Bank (PowerCore 24K)",
+    "sku": "ANK-737-PB",
+    "description": "24,000mAh 3-port portable charger with 140W max output and smart digital display.",
+    "price": "149.99",
+    "stock_quantity": 60,
+    "is_active": true,
+    "created_at": "2026-08-25T08:43:46.641Z",
+    "updated_at": "2026-08-25T08:43:46.641Z"
+  }
+},
+{
+  "model": "products.product",
+  "pk": 8,
+  "fields": {
+    "name": "Discontinued USB-A to VGA Adapter",
+    "sku": "ADP-VGA-OLD",
+    "description": "Legacy legacy adapter, discontinued and no longer supported.",
+    "price": "14.99",
+    "stock_quantity": 0,
+    "is_active": false,
+    "created_at": "2026-08-25T08:43:46.641Z",
+    "updated_at": "2026-08-25T08:43:46.641Z"
+  }
+},
+{
+  "model": "orders.order",
+  "pk": 1,
+  "fields": {
+    "customer_name": "Sarah Connor",
+    "status": "PENDING",
+    "created_at": "2026-08-25T08:43:46.641Z",
+    "updated_at": "2026-08-25T08:43:46.641Z",
+    "cancelled_at": null
+  }
+},
+{
+  "model": "orders.order",
+  "pk": 2,
+  "fields": {
+    "customer_name": "John Connor",
+    "status": "CANCELLED",
+    "created_at": "2026-08-25T08:43:46.642Z",
+    "updated_at": "2026-08-25T08:43:46.642Z",
+    "cancelled_at": "2026-08-25T08:43:46.642Z"
+  }
+},
+{
+  "model": "orders.orderitem",
+  "pk": 1,
+  "fields": {
+    "order": 1,
+    "product": 1,
+    "quantity": 1,
+    "unit_price": "3499.00"
+  }
+},
+{
+  "model": "orders.orderitem",
+  "pk": 2,
+  "fields": {
+    "order": 1,
+    "product": 4,
+    "quantity": 1,
+    "unit_price": "99.99"
+  }
+},
+{
+  "model": "orders.orderitem",
+  "pk": 3,
+  "fields": {
+    "order": 2,
+    "product": 3,
+    "quantity": 2,
+    "unit_price": "199.99"
+  }
+}
+]
