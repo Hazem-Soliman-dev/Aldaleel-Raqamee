@@ -8,4 +8,7 @@ class CommonConfig(AppConfig):
         import common.signals
         from django.contrib.auth.models import Group
         from django.contrib import admin
-        admin.site.unregister(Group)
+        try:
+            admin.site.unregister(Group)
+        except admin.sites.NotRegistered:
+            pass
